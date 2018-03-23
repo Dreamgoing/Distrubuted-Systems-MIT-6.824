@@ -2,6 +2,10 @@ package mapreduce
 
 import (
 	"hash/fnv"
+	"os"
+	"encoding/json"
+	"log"
+	"io/ioutil"
 )
 
 // doMap manages one map task: it reads one of the input files
@@ -53,6 +57,78 @@ func doMap(
 	//
 	// Remember to close the file after you have written all the values!
 	//
+	singleProcessMap(jobName, mapTaskNumber, inFile, nReduce, mapF)
+
+}
+func singleProcessMap(
+	jobName string,    // the name of the MapReduce job
+	mapTaskNumber int, // which map task this is
+	inFile string,
+	nReduce int, // the number of reduce task that will be run ("R" in the paper)
+	mapF func(file string, contents string) []KeyValue, ) {
+	content, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mapRes := mapF(inFile, string(content))
+	dividedRes := make([][]KeyValue, nReduce)
+	for _, it := range mapRes {
+		/// Note: associate all same keys with identical reduce task number.
+		reduceNum := ihash(it.Key) % nReduce
+		dividedRes[reduceNum] = append(dividedRes[reduceNum], it)
+	}
+
+	for i := 0; i < nReduce; i++ {
+		intermediateFile, err := os.Create(reduceName(jobName, mapTaskNumber, i))
+		if err != nil {
+			log.Fatal(err)
+		}
+		enc := json.NewEncoder(intermediateFile)
+		for _, kv := range dividedRes[i] {
+			enc.Encode(&kv)
+		}
+		intermediateFile.Close()
+	}
+
+}
+
+
+func mapFile(
+	inFile string,
+	nReduce int,
+	mapF func(filename string, contents string) []KeyValue,
+	chans []chan KeyValue) {
+
+	content, err := ioutil.ReadFile(inFile)
+	if err != err {
+		log.Fatal(err)
+	}
+
+	mapRes := mapF(inFile, string(content))
+	for _, it := range mapRes {
+		reduceTaskNumber := ihash(it.Key) % nReduce
+		chans[reduceTaskNumber] <- it
+	}
+
+	for _, it := range chans {
+		close(it)
+	}
+	//log.Printf("Finish mapFile: %s", inFile)
+}
+
+func writeInterFile(filename string, ch chan KeyValue) {
+	interFile, err := os.Create(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer interFile.Close()
+
+	enc := json.NewEncoder(interFile)
+	for it := range ch {
+		enc.Encode(it)
+	}
+	//log.Printf("Finish writeInterFile %s", filename)
 }
 
 func ihash(s string) int {
