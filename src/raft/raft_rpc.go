@@ -32,7 +32,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		voteGrated = true
 	}
 
-	rf.currentTerm = term
+	rf.currentTerm = args.Term
 	rf.votedFor = args.CandidateID
 
 	voteGrated = true
@@ -56,12 +56,14 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	DPrintf("%v %v accept AppendEntries", rf.state, rf.me)
+
+	DPrintf("%v %v accept AppendEntries, leader:%v,currentTerm:%v, term:%v",
+		rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term)
 	var term, success = None, false
-	if term < rf.currentTerm {
+	if args.Term < rf.currentTerm {
 		success = false
 	} else {
-		rf.currentTerm = term
+		rf.currentTerm = args.Term
 		rf.state = FollowerState
 		rf.timer.Reset(rf.electionTimeout)
 	}

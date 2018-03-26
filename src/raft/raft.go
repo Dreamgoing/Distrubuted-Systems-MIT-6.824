@@ -270,7 +270,7 @@ func leaderElection(rf *Raft) {
 
 			}
 			if num > len(rf.peers)/2 {
-				DPrintf("Candidate %v became leader", rf.me)
+				DPrintf("Candidate %v became leader, term:%v", rf.me, rf.currentTerm)
 				rf.state = LeaderState
 			} else {
 				rf.currentTerm--
@@ -280,10 +280,13 @@ func leaderElection(rf *Raft) {
 			time.Sleep(10 * time.Millisecond)
 			for id := range rf.peers {
 				reply := &AppendEntriesReply{}
-				ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
-					rf.currentTerm, rf.me, -1, -1, 1 - 1},
-					reply)
-				DPrintf("sendAppendEntries %v", ok)
+				if id != rf.me {
+					ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
+						rf.currentTerm, rf.me, -1, -1, 1 - 1},
+						reply)
+					DPrintf("sendAppendEntries %v", ok)
+				}
+
 			}
 		}
 		rf.mu.Unlock()
