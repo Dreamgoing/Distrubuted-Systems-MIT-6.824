@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"sort"
 	"log"
+	"io/ioutil"
+	"strings"
+	"sync"
 )
 
 // doReduce manages one reduce task: it reads the intermediate
@@ -51,6 +54,14 @@ func doReduce(
 	// file.Close()
 	//
 	singleProcessReduce(jobName, reduceTaskNumber, outFile, nMap, reduceF)
+
+	// Note: multiGoroutineReduce is not correct, and seems hard to use goroutine to speed up.
+	// Because all same key appear in files which has the same `reduceTaskNumber`,
+	// so first we should merge all intermediate files (decode and sort) then do reduce function.
+	// Finally, according to `reduceTaskNumber` output result.
+
+	// multiGoroutineReduce is just a legacy code for learning.
+	//multiGoroutineReduce(jobName, reduceTaskNumber, outFile, nMap, reduceF)
 }
 
 func singleProcessReduce(
@@ -103,4 +114,82 @@ func singleProcessReduce(
 		}
 	}
 
+}
+
+func multiGoroutineReduce(
+	jobName string,
+	reduceTaskNumber int,
+	outFile string,
+	nMap int,
+	reduceF func(key string, values []string) string,
+) {
+	reduceCh := make(chan KeyValue, 3)
+	go writeOutFile(outFile, reduceCh)
+	var wg sync.WaitGroup
+	for i := 0; i < nMap; i++ {
+		wg.Add(1)
+		go func(mapTaskNumber int) {
+			interKVs := decodeFile(reduceName(jobName, mapTaskNumber, reduceTaskNumber))
+			reduceKeyValues(interKVs, reduceF, reduceCh)
+			defer wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	close(reduceCh)
+}
+
+func decodeFile(filename string) []KeyValue {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dec := json.NewDecoder(strings.NewReader(string(content)))
+	var res []KeyValue
+	for dec.More() {
+		var item KeyValue
+
+		err := dec.Decode(&item)
+		if err != nil {
+			log.Fatal(err)
+		}
+		res = append(res, item)
+	}
+	return res
+}
+
+func reduceKeyValues(
+	interKVs []KeyValue,
+	reduceF func(key string, values []string) string,
+	ch chan KeyValue) {
+
+	sort.Sort(ByKey(interKVs))
+
+	var curKey string
+	for i := 0; i < len(interKVs); i++ {
+		values := make([]string, 0)
+		if curKey != interKVs[i].Key {
+			curKey = interKVs[i].Key
+		}
+
+		for ; i < len(interKVs) && curKey == interKVs[i].Key; i++ {
+			values = append(values, interKVs[i].Value)
+		}
+		//NOTE dec i.
+		i--
+		reducedValue := reduceF(curKey, values)
+
+		ch <- KeyValue{curKey, reducedValue}
+	}
+}
+
+func writeOutFile(filename string, ch chan KeyValue) {
+	outputFile, err := os.Create(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outputFile.Close()
+	enc := json.NewEncoder(outputFile)
+	for it := range ch {
+		enc.Encode(it)
+	}
 }

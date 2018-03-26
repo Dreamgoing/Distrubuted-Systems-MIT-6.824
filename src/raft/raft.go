@@ -18,12 +18,21 @@ package raft
 //
 
 import "sync"
-import "labrpc"
+import (
+	"labrpc"
+	"time"
+	"math/rand"
+)
 
 // import "bytes"
 // import "labgob"
 
-
+const None = -1
+const (
+	FollowerState  = "Follower"
+	CandidateState = "Candidate"
+	LeaderState    = "Leader"
+)
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -51,10 +60,24 @@ type Raft struct {
 	persister *Persister          // Object to hold this peer's persisted state
 	me        int                 // this peer's index into peers[]
 
+	// persisted
+	state       string
+	currentTerm int
+	votedFor    int
+
+	// mutable
+	commitIndex int
+	lastApplied int
+
+	timer *time.Timer
+
+	electionTimeout time.Duration
+	lastTime        time.Time
+	logs            []Entry
+
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-
 }
 
 // return currentTerm and whether this server
@@ -64,9 +87,10 @@ func (rf *Raft) GetState() (int, bool) {
 	var term int
 	var isleader bool
 	// Your code here (2A).
+	isleader = rf.state == LeaderState
+	term = rf.currentTerm
 	return term, isleader
 }
-
 
 //
 // save Raft's persistent state to stable storage,
@@ -106,32 +130,6 @@ func (rf *Raft) readPersist(data []byte) {
 	// }
 }
 
-
-
-
-//
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
-//
-type RequestVoteArgs struct {
-	// Your data here (2A, 2B).
-}
-
-//
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
-//
-type RequestVoteReply struct {
-	// Your data here (2A).
-}
-
-//
-// example RequestVote RPC handler.
-//
-func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (2A, 2B).
-}
-
 //
 // example code to send a RequestVote RPC to a server.
 // server is the index of the target server in rf.peers[].
@@ -166,6 +164,10 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
+func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+	return ok
+}
 
 //
 // the service using Raft (e.g. a k/v server) wants to start
@@ -186,7 +188,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (2B).
-
+	isLeader = rf.state == LeaderState
 
 	return index, term, isLeader
 }
@@ -220,10 +222,71 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (2A, 2B, 2C).
+	rf.electionTimeout = time.Duration(1000000 * (rand.Int31n(200) + 300))
+	rf.lastTime = time.Now()
+	rf.state = FollowerState
+	rf.currentTerm = -1
+	rf.votedFor = -1
+	rf.timer = time.NewTimer(rf.electionTimeout)
+
+	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
+
+	go leaderElection(rf)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
-
 	return rf
+}
+
+func leaderElection(rf *Raft) {
+	for {
+		rf.mu.Lock()
+
+		switch rf.state {
+
+		case FollowerState:
+			<-rf.timer.C
+			rf.state = CandidateState
+			DPrintf("Follower %v", rf.me)
+
+		case CandidateState:
+			num := 1
+			rf.currentTerm++
+			rf.timer.Reset(rf.electionTimeout)
+			DPrintf("Candidate %v", rf.me)
+			for id := range rf.peers {
+				if id != rf.me {
+					// 并行的发送
+					reply := &RequestVoteReply{}
+					ok := rf.sendRequestVote(id, &RequestVoteArgs{rf.currentTerm,
+						rf.me, rf.commitIndex, rf.lastApplied},
+						reply)
+
+					if ok && reply.VoteGrated {
+						num++
+					}
+				}
+
+			}
+			if num > len(rf.peers)/2 {
+				DPrintf("Candidate %v became leader", rf.me)
+				rf.state = LeaderState
+			} else {
+				rf.currentTerm--
+				rf.state = FollowerState
+			}
+		case LeaderState:
+			time.Sleep(10 * time.Millisecond)
+			for id := range rf.peers {
+				reply := &AppendEntriesReply{}
+				ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
+					rf.currentTerm, rf.me, -1, -1, 1 - 1},
+					reply)
+				DPrintf("sendAppendEntries %v", ok)
+			}
+		}
+		rf.mu.Unlock()
+	}
+
 }
