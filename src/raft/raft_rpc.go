@@ -28,14 +28,13 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		voteGrated = false
 	}
 	// -1 indicate nil
-	if rf.votedFor == -1 || args.CandidateID != -1 {
+	if rf.votedFor == None || args.CandidateID != None {
 		voteGrated = true
+		DPrintf("%v %v vote %v", rf.state, rf.me, args.CandidateID)
+		rf.currentTerm = args.Term
+		rf.votedFor = args.CandidateID
 	}
 
-	rf.currentTerm = args.Term
-	rf.votedFor = args.CandidateID
-
-	voteGrated = true
 	reply.Term = term
 	reply.VoteGrated = voteGrated
 
@@ -57,20 +56,19 @@ type AppendEntriesReply struct {
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 
-	DPrintf("%v %v accept AppendEntries, leader:%v,currentTerm:%v, term:%v",
-		rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term)
 	var term, success = None, false
 	if args.Term < rf.currentTerm {
 		success = false
 	} else {
+		DPrintf("%v %v accept AppendEntries, leader:%v,currentTerm:%v, term:%v",
+			rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term)
 		rf.currentTerm = args.Term
+		success = true
 		rf.state = FollowerState
 		rf.timer.Reset(rf.electionTimeout)
+		term = rf.currentTerm
 	}
 
-	success = true
-
-	term = rf.currentTerm
 	reply.Term = term
 	reply.Success = success
 }

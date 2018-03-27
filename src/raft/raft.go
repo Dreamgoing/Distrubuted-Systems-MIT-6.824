@@ -255,20 +255,28 @@ func leaderElection(rf *Raft) {
 			rf.currentTerm++
 			rf.timer.Reset(rf.electionTimeout)
 			DPrintf("Candidate %v", rf.me)
+			var wg sync.WaitGroup
+			wg.Add(len(rf.peers) - 1)
 			for id := range rf.peers {
 				if id != rf.me {
 					// 并行的发送
-					reply := &RequestVoteReply{}
-					ok := rf.sendRequestVote(id, &RequestVoteArgs{rf.currentTerm,
-						rf.me, rf.commitIndex, rf.lastApplied},
-						reply)
+					go func(id int) {
+						reply := &RequestVoteReply{}
+						ok := rf.sendRequestVote(id, &RequestVoteArgs{rf.currentTerm,
+							rf.me, rf.commitIndex, rf.lastApplied},
+							reply)
 
-					if ok && reply.VoteGrated {
-						num++
-					}
+						if ok && reply.VoteGrated {
+							num++
+						}
+						wg.Done()
+					}(id)
+
 				}
 
 			}
+			wg.Wait()
+			DPrintf("num: %v", num)
 			if num > len(rf.peers)/2 {
 				DPrintf("Candidate %v became leader, term:%v", rf.me, rf.currentTerm)
 				rf.state = LeaderState
@@ -278,16 +286,35 @@ func leaderElection(rf *Raft) {
 			}
 		case LeaderState:
 			time.Sleep(10 * time.Millisecond)
+			num := 1
+			var wg sync.WaitGroup
+			wg.Add(len(rf.peers))
 			for id := range rf.peers {
-				reply := &AppendEntriesReply{}
-				if id != rf.me {
-					ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
-						rf.currentTerm, rf.me, -1, -1, 1 - 1},
-						reply)
-					DPrintf("sendAppendEntries %v", ok)
-				}
+				go func(id int) {
+					reply := &AppendEntriesReply{}
+					if id != rf.me {
+						ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
+							rf.currentTerm, rf.me, -1, -1, 1 - 1},
+							reply)
+						DPrintf("%v %v sendAppendEntries to %v %v term: %v reply_term %v",
+							rf.state, rf.me, id, ok, rf.currentTerm, reply.Term)
+						if !ok || !reply.Success && reply.Term > rf.currentTerm {
+							DPrintf("%v %v became follower", rf.state, rf.me)
+							rf.currentTerm = reply.Term
+							rf.state = FollowerState
+							rf.timer.Reset(rf.electionTimeout)
+						}
+						if ok && reply.Success {
+							num++
+						}
+					}
+					wg.Done()
+
+				}(id)
 
 			}
+			wg.Wait()
+			DPrintf("%v %v send HeartBeat", rf.state, rf.me)
 		}
 		rf.mu.Unlock()
 	}
