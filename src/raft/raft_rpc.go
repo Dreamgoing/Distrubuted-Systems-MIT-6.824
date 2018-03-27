@@ -25,6 +25,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	var term, voteGrated = None, false
 
 	if args.Term < rf.currentTerm {
+		term = rf.currentTerm
 		voteGrated = false
 	}
 	// -1 indicate nil
@@ -58,6 +59,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	var term, success = None, false
 	if args.Term < rf.currentTerm {
+		term = rf.currentTerm
 		success = false
 	} else {
 		DPrintf("%v %v accept AppendEntries, leader:%v,currentTerm:%v, term:%v",

@@ -241,8 +241,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 func leaderElection(rf *Raft) {
 	for {
-		rf.mu.Lock()
-
 		switch rf.state {
 
 		case FollowerState:
@@ -285,7 +283,7 @@ func leaderElection(rf *Raft) {
 				rf.state = FollowerState
 			}
 		case LeaderState:
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 			num := 1
 			var wg sync.WaitGroup
 			wg.Add(len(rf.peers))
@@ -302,6 +300,7 @@ func leaderElection(rf *Raft) {
 							DPrintf("%v %v became follower", rf.state, rf.me)
 							rf.currentTerm = reply.Term
 							rf.state = FollowerState
+							rf.votedFor = None
 							rf.timer.Reset(rf.electionTimeout)
 						}
 						if ok && reply.Success {
@@ -316,7 +315,6 @@ func leaderElection(rf *Raft) {
 			wg.Wait()
 			DPrintf("%v %v send HeartBeat", rf.state, rf.me)
 		}
-		rf.mu.Unlock()
 	}
 
 }
