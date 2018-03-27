@@ -69,11 +69,14 @@ type Raft struct {
 	commitIndex int
 	lastApplied int
 
+	nextIndex  []int
+	matchIndex []int
+
 	timer *time.Timer
 
 	electionTimeout time.Duration
 	lastTime        time.Time
-	logs            []Entry
+	logs            []*Entry
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -249,71 +252,10 @@ func leaderElection(rf *Raft) {
 			DPrintf("Follower %v", rf.me)
 
 		case CandidateState:
-			num := 1
-			rf.currentTerm++
-			rf.timer.Reset(rf.electionTimeout)
-			DPrintf("Candidate %v", rf.me)
-			var wg sync.WaitGroup
-			wg.Add(len(rf.peers) - 1)
-			for id := range rf.peers {
-				if id != rf.me {
-					// 并行的发送
-					go func(id int) {
-						reply := &RequestVoteReply{}
-						ok := rf.sendRequestVote(id, &RequestVoteArgs{rf.currentTerm,
-							rf.me, rf.commitIndex, rf.lastApplied},
-							reply)
-
-						if ok && reply.VoteGrated {
-							num++
-						}
-						wg.Done()
-					}(id)
-
-				}
-
-			}
-			wg.Wait()
-			DPrintf("num: %v", num)
-			if num > len(rf.peers)/2 {
-				DPrintf("Candidate %v became leader, term:%v", rf.me, rf.currentTerm)
-				rf.state = LeaderState
-			} else {
-				rf.currentTerm--
-				rf.state = FollowerState
-			}
+			rf.CandidateRequestVotes()
 		case LeaderState:
-			time.Sleep(1 * time.Millisecond)
-			num := 1
-			var wg sync.WaitGroup
-			wg.Add(len(rf.peers))
-			for id := range rf.peers {
-				go func(id int) {
-					reply := &AppendEntriesReply{}
-					if id != rf.me {
-						ok := rf.sendAppendEntries(id, &AppendEntriesArgs{
-							rf.currentTerm, rf.me, -1, -1, 1 - 1},
-							reply)
-						DPrintf("%v %v sendAppendEntries to %v %v term: %v reply_term %v",
-							rf.state, rf.me, id, ok, rf.currentTerm, reply.Term)
-						if !ok || !reply.Success && reply.Term > rf.currentTerm {
-							DPrintf("%v %v became follower", rf.state, rf.me)
-							rf.currentTerm = reply.Term
-							rf.state = FollowerState
-							rf.votedFor = None
-							rf.timer.Reset(rf.electionTimeout)
-						}
-						if ok && reply.Success {
-							num++
-						}
-					}
-					wg.Done()
-
-				}(id)
-
-			}
-			wg.Wait()
-			DPrintf("%v %v send HeartBeat", rf.state, rf.me)
+			time.Sleep(30 * time.Millisecond)
+			rf.LeaderAppendEntries()
 		}
 	}
 
