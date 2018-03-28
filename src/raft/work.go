@@ -34,6 +34,7 @@ func (rf *Raft) LeaderAppendEntries() {
 			}
 			if ok && reply.Success {
 				atomic.AddInt32(&cnt, 1)
+				rf.nextIndex[it] = rf.commitIndex + 1
 			}
 			wg.Done()
 		}(it)
@@ -81,9 +82,8 @@ func (rf *Raft) CandidateRequestVotes() {
 		DPrintf("%v %v became leader, term:%v", rf.state, rf.me, rf.currentTerm)
 		rf.ToLeader()
 	} else {
+		rf.ToFollower()
 		rf.currentTerm--
-		rf.state = FollowerState
-		rf.votedFor = None
 	}
 
 }
@@ -96,9 +96,9 @@ func countSuccess(ch chan bool, res *int) {
 	}
 }
 
-func (rf *Raft) GetLastLog() *Entry {
+func (rf *Raft) GetLastLog() Entry {
 	if len(rf.logs) == 0 {
-		return &Entry{None, None, None}
+		return Entry{None, None, None}
 	} else {
 		return rf.logs[len(rf.logs)-1]
 	}

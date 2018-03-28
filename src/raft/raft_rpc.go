@@ -45,7 +45,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 type AppendEntriesArgs struct {
 	Term         int
 	LeaderID     int
-	Logs         []*Entry
+	Logs         []Entry
 	PrevLogIndex int
 	PrevLogTerm  int
 	LeaderCommit int
@@ -58,42 +58,41 @@ type AppendEntriesReply struct {
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 
-	var term, success = None, true
-
-	// 1.
+	// 1. term < currentTerm
 	if args.Term < rf.currentTerm {
-		term = rf.currentTerm
-		success = false
+		reply.Term = rf.currentTerm
+		reply.Success = false
+		return
 	}
 
-	// 2.
-	//if rf.logs[args.PrevLogIndex].term != args.PrevLogTerm {
-	//	success = false
-	//}
+	rf.ToFollower()
 
-	//3.
+	// 2. 当前Follower上面已提交日志的索引小于Leader发来的最后一个日志的索引
+	// 这种情况需要Leader再补发之前未在本Follower提交的日志
+	if len(rf.logs) < args.PrevLogIndex {
+		DPrintf("len(rf.logs): %v args.PrevLogIndex: %v", len(rf.logs), args.PrevLogIndex)
+		reply.Success = false
+		return
+		//	3. 删除已存在冲突的日志条目以及之后所有的日志
+	} else if len(rf.logs) > 0 && rf.logs[args.PrevLogIndex].Term != args.PrevLogTerm {
+		rf.logs = rf.logs[:args.PrevLogIndex]
+	}
 
-	//4.
-
-	//5.
+	if len(args.Logs) == 0 {
+		DPrintf("%v %v accept HeartBeat from %v", rf.state, rf.me, args.LeaderID)
+	} else {
+		// 4. 添加新增的日志
+		DPrintf("%v %v accept AppendEntries, leader:%v, currentTerm:%v, term:%v log:%v",
+			rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term, args.Logs[0].Command)
+		rf.logs = append(rf.logs, args.Logs...)
+	}
 
 	DPrintf("args.LeaderCommit:%v rf.commitIndex:%v", args.LeaderCommit, rf.commitIndex)
+	// 5. 更新日志commitIndex
 	if args.LeaderCommit > rf.commitIndex {
-		rf.logs = append(rf.logs, args.Logs...)
-		rf.commitIndex = len(rf.logs) - 1
-		rf.commitIndex = Min(args.LeaderCommit, rf.logs[len(rf.logs)-1].Index)
+		rf.commitIndex = Min(args.LeaderCommit, len(rf.logs)-1)
 	}
 
-	if success {
-		DPrintf("%v %v accept AppendEntries, leader:%v,currentTerm:%v, term:%v",
-			rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term)
-		rf.currentTerm = args.Term
-		success = true
-		rf.state = FollowerState
-		rf.timer.Reset(rf.electionTimeout)
-		term = rf.currentTerm
-	}
-
-	reply.Term = term
-	reply.Success = success
+	reply.Term = rf.currentTerm
+	reply.Success = true
 }

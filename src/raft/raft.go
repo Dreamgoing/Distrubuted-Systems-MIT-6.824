@@ -76,7 +76,9 @@ type Raft struct {
 
 	electionTimeout time.Duration
 	lastTime        time.Time
-	logs            []*Entry
+	logs            []Entry
+
+	applyChan chan ApplyMsg
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -86,7 +88,8 @@ type Raft struct {
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	var term int
 	var isleader bool
 	// Your code here (2A).
@@ -194,10 +197,12 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader = rf.state == LeaderState
 	if isLeader {
 		rf.commitIndex++
-		rf.logs = append(rf.logs, &Entry{rf.currentTerm, rf.commitIndex, command})
 		index = rf.commitIndex
 		term = rf.currentTerm
+		DPrintf("command: %v index: %v", command, index)
+		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
 		rf.LeaderAppendEntries()
+
 	}
 
 	return index, term, isLeader
@@ -238,6 +243,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = -1
 	rf.votedFor = -1
 	rf.commitIndex = None
+	rf.nextIndex = make([]int, 1)
+	rf.logs = make([]Entry, 1)
 	rf.timer = time.NewTimer(rf.electionTimeout)
 
 	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
@@ -252,9 +259,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 func leaderElection(rf *Raft) {
 	for {
-		DPrintf("%v %v voteFor: %v", rf.state, rf.me, rf.votedFor)
+		DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
+		//rf.ApplyCommit()
 		switch rf.state {
-
 		case FollowerState:
 			<-rf.timer.C
 			rf.state = CandidateState
@@ -265,6 +272,7 @@ func leaderElection(rf *Raft) {
 		case LeaderState:
 			time.Sleep(30 * time.Millisecond)
 			rf.LeaderAppendEntries()
+
 		}
 	}
 
