@@ -192,6 +192,13 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 
 	// Your code here (2B).
 	isLeader = rf.state == LeaderState
+	if isLeader {
+		rf.commitIndex++
+		rf.logs = append(rf.logs, &Entry{rf.currentTerm, rf.commitIndex, command})
+		index = rf.commitIndex
+		term = rf.currentTerm
+		rf.LeaderAppendEntries()
+	}
 
 	return index, term, isLeader
 }
@@ -230,6 +237,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.state = FollowerState
 	rf.currentTerm = -1
 	rf.votedFor = -1
+	rf.commitIndex = None
 	rf.timer = time.NewTimer(rf.electionTimeout)
 
 	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
@@ -244,6 +252,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 func leaderElection(rf *Raft) {
 	for {
+		DPrintf("%v %v voteFor: %v", rf.state, rf.me, rf.votedFor)
 		switch rf.state {
 
 		case FollowerState:

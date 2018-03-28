@@ -1,13 +1,14 @@
 package raft
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 func (rf *Raft) LeaderAppendEntries() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	appendRes := make(chan bool)
-	cnt := 1
-	go countSuccess(appendRes, &cnt)
+	cnt := int32(1)
 	total := len(rf.peers)
 	var wg sync.WaitGroup
 	wg.Add(total - 1)
@@ -20,8 +21,10 @@ func (rf *Raft) LeaderAppendEntries() {
 			reply := &AppendEntriesReply{}
 			lastLog := rf.GetLastLog()
 			ok := rf.sendAppendEntries(it, &AppendEntriesArgs{rf.currentTerm,
-				rf.me, lastLog.term, lastLog.index, rf.commitIndex},
+				rf.me, rf.logs[rf.nextIndex[it]:], lastLog.Term,
+				lastLog.Index, rf.commitIndex},
 				reply)
+
 			if !ok || !reply.Success && reply.Term > rf.currentTerm {
 				DPrintf("%v %v became follower", rf.state, rf.me)
 				rf.currentTerm = reply.Term
@@ -29,12 +32,13 @@ func (rf *Raft) LeaderAppendEntries() {
 				rf.votedFor = None
 				rf.timer.Reset(rf.electionTimeout)
 			}
-			appendRes <- reply.Success
+			if ok && reply.Success {
+				atomic.AddInt32(&cnt, 1)
+			}
 			wg.Done()
 		}(it)
 	}
 	wg.Wait()
-	close(appendRes)
 	DPrintf("%v %v appendEntries %v/%v success", rf.state, rf.me, cnt, total)
 }
 
@@ -47,14 +51,13 @@ func (rf *Raft) CandidateRequestVotes() {
 	defer rf.mu.Unlock()
 
 	rf.currentTerm++
-	//rf.votedFor = None
+	rf.votedFor = None
 	rf.timer.Reset(rf.electionTimeout)
 	DPrintf("New %v %v", rf.state, rf.me)
 
-	voteRes := make(chan bool)
 	total := len(rf.peers)
-	cnt := 1
-	go countSuccess(voteRes, &cnt)
+	cnt := int32(1)
+
 	var wg sync.WaitGroup
 	wg.Add(total - 1)
 	for it := range rf.peers {
@@ -65,22 +68,18 @@ func (rf *Raft) CandidateRequestVotes() {
 			reply := &RequestVoteReply{}
 			ok := rf.sendRequestVote(it, &RequestVoteArgs{rf.currentTerm,
 				rf.me, None, None}, reply)
-			if ok {
-
-			}
-			voteRes <- reply.VoteGrated
-			if reply.VoteGrated {
-				cnt++
+			if ok && reply.VoteGrated {
+				atomic.AddInt32(&cnt, 1)
 			}
 			wg.Done()
 		}(it)
 	}
 	wg.Wait()
-	close(voteRes)
+
 	DPrintf("%v %v get %v/%v votes", rf.state, rf.me, cnt, total)
-	if cnt > total/2 {
+	if int(cnt) > total/2 {
 		DPrintf("%v %v became leader, term:%v", rf.state, rf.me, rf.currentTerm)
-		rf.becameLeader()
+		rf.ToLeader()
 	} else {
 		rf.currentTerm--
 		rf.state = FollowerState
@@ -95,11 +94,6 @@ func countSuccess(ch chan bool, res *int) {
 			*res ++
 		}
 	}
-}
-
-func (rf *Raft) becameLeader() {
-	rf.state = LeaderState
-	rf.timer.Reset(rf.electionTimeout)
 }
 
 func (rf *Raft) GetLastLog() *Entry {
