@@ -21,18 +21,10 @@ import "sync"
 import (
 	"labrpc"
 	"time"
-	"math/rand"
 )
 
 // import "bytes"
 // import "labgob"
-
-const None = -1
-const (
-	FollowerState  = "Follower"
-	CandidateState = "Candidate"
-	LeaderState    = "Leader"
-)
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -61,7 +53,7 @@ type Raft struct {
 	me        int                 // this peer's index into peers[]
 
 	// persisted
-	state       string
+	state       State
 	currentTerm int
 	votedFor    int
 
@@ -75,7 +67,6 @@ type Raft struct {
 	timer *time.Timer
 
 	electionTimeout time.Duration
-	lastTime        time.Time
 	logs            []Entry
 
 	applyChan chan ApplyMsg
@@ -239,20 +230,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (2A, 2B, 2C).
-	rf.electionTimeout = time.Duration(1000000 * (rand.Int31n(200) + 300))
-	rf.lastTime = time.Now()
-	rf.state = FollowerState
-	rf.currentTerm = -1
-	rf.votedFor = -1
-	rf.commitIndex = None
-	rf.nextIndex = make([]int, len(rf.peers))
-	rf.timer = time.NewTimer(rf.electionTimeout)
+	rf.Init()
 	rf.applyChan = applyCh
 
 	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
 
+	//rf.ToFollower()
 	go backgroundServer(rf)
-
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
@@ -265,15 +249,17 @@ func backgroundServer(rf *Raft) {
 		switch rf.state {
 		case FollowerState:
 			<-rf.timer.C
+			//time.Sleep(rf.electionTimeout)
+			DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
 			rf.state = CandidateState
-			DPrintf("Follower %v", rf.me)
 
 		case CandidateState:
 			rf.CandidateRequestVotes()
 		case LeaderState:
 			rf.LeaderAppendEntries()
 			time.Sleep(30 * time.Millisecond)
-
+			//case End:
+			//	return
 		}
 	}
 
