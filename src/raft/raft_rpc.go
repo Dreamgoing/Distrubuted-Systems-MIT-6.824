@@ -24,6 +24,7 @@ type RequestVoteReply struct {
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	var term, voteGrated = None, true
 
+	DPrintf("%v %v currentTerm: %v", rf.state, rf.me, rf.currentTerm)
 	if args.Term < rf.currentTerm {
 		term = rf.currentTerm
 		voteGrated = false
@@ -65,7 +66,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		reply.Success = false
 		return
 	}
-
+	DPrintf("AppendEntries")
 	rf.ToFollower()
 
 	DPrintf("len(rf.logs): %v args.PrevLogIndex: %v", len(rf.logs), args.PrevLogIndex)
