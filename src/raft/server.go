@@ -14,7 +14,12 @@ func (rf *Raft) ApplyStateMachine() {
 
 func (rf *Raft) Init() {
 	rf.electionTimeout = time.Duration(rand.Int63n(RandNum)+ElectionTimeout) * time.Millisecond
-	rf.timer = time.NewTimer(rf.electionTimeout)
+	rf.timer = make(map[State]*time.Timer, 3)
+
+	rf.timer[FollowerState] = time.NewTimer(rf.electionTimeout)
+	rf.timer[CandidateState] = time.NewTimer(rf.electionTimeout)
+	rf.timer[LeaderState] = time.NewTimer(rf.electionTimeout)
+
 	rf.state = FollowerState
 	rf.currentTerm = None
 	rf.votedFor = None
@@ -61,8 +66,18 @@ func (rf *Raft) ApplyCommit() {
 
 func (rf *Raft) ResetTimer(state State) {
 	timeout, _ := TimeOutMapping[state]
-	rf.timer.Stop()
+	rf.timer[state].Stop()
 	rf.electionTimeout = (timeout + time.Duration(rand.Int63n(RandNum))) * time.Millisecond
-	rf.timer = time.NewTimer(rf.electionTimeout)
-	rf.timer.Reset(rf.electionTimeout)
+	rf.timer[state] = time.NewTimer(rf.electionTimeout)
+	rf.timer[state].Reset(rf.electionTimeout)
+}
+
+func (rf *Raft) AcquireLock() {
+	rf.mu.Lock()
+	rf.isLock = true
+}
+
+func (rf *Raft) ReleaseLock() {
+	rf.isLock = false
+	rf.mu.Unlock()
 }

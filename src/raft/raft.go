@@ -52,6 +52,7 @@ type Raft struct {
 	persister *Persister          // Object to hold this peer's persisted state
 	me        int                 // this peer's index into peers[]
 
+	isLock bool
 	// persisted
 	state       State
 	currentTerm int
@@ -64,7 +65,7 @@ type Raft struct {
 	nextIndex  []int
 	matchIndex []int
 
-	timer *time.Timer
+	timer map[State]*time.Timer
 
 	electionTimeout time.Duration
 	logs            []Entry
@@ -233,7 +234,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.Init()
 	rf.applyChan = applyCh
 
-	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
+	DPrintf("Create raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
 
 	//rf.ToFollower()
 	go backgroundServer(rf)
@@ -248,7 +249,7 @@ func backgroundServer(rf *Raft) {
 		DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
 		switch rf.state {
 		case FollowerState:
-			<-rf.timer.C
+			<-rf.timer[FollowerState].C
 			//time.Sleep(rf.electionTimeout)
 			DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
 			rf.state = CandidateState
@@ -262,5 +263,22 @@ func backgroundServer(rf *Raft) {
 			//	return
 		}
 	}
+
+}
+
+func (rf *Raft) server() {
+	go func() {
+		ticker := time.NewTicker(time.Millisecond)
+		select {
+		case <-ticker.C:
+			rf.AcquireLock()
+			rf.ApplyCommit()
+			rf.ReleaseLock()
+		}
+	}()
+
+	go func() {
+		select {}
+	}()
 
 }

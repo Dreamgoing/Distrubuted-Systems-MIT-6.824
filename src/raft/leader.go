@@ -29,7 +29,7 @@ func (rf *Raft) LeaderAppendEntries() {
 				rf.currentTerm = reply.Term
 				rf.state = FollowerState
 				rf.votedFor = None
-				rf.timer.Reset(rf.electionTimeout)
+				rf.timer[FollowerState].Reset(rf.electionTimeout)
 			}
 			if ok && reply.Success {
 				atomic.AddInt32(&cnt, 1)
