@@ -77,7 +77,7 @@ func TestReElection2A(t *testing.T) {
 }
 
 func TestBasicAgree2B(t *testing.T) {
-	servers := 3
+	servers := 2
 	cfg := make_config(t, servers, false)
 	defer cfg.cleanup()
 
@@ -91,7 +91,7 @@ func TestBasicAgree2B(t *testing.T) {
 		}
 
 		xindex := cfg.one(index*100, servers, false)
-		if xindex != index {
+		if xindex != index-1 {
 			t.Fatalf("got index %v but expected %v", xindex, index)
 		}
 	}

@@ -202,6 +202,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		DPrintf("command: %v index: %v", command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
 		rf.LeaderAppendEntries()
+		rf.applyChan <- ApplyMsg{true, command, index}
 
 	}
 
@@ -243,13 +244,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = -1
 	rf.votedFor = -1
 	rf.commitIndex = None
-	rf.nextIndex = make([]int, 1)
-	rf.logs = make([]Entry, 1)
+	rf.nextIndex = make([]int, len(rf.peers))
 	rf.timer = time.NewTimer(rf.electionTimeout)
+	rf.applyChan = applyCh
 
 	DPrintf("Crete raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
 
-	go leaderElection(rf)
+	go backgroundServer(rf)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
@@ -257,10 +258,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	return rf
 }
 
-func leaderElection(rf *Raft) {
+func backgroundServer(rf *Raft) {
 	for {
 		DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
-		//rf.ApplyCommit()
 		switch rf.state {
 		case FollowerState:
 			<-rf.timer.C
@@ -270,8 +270,8 @@ func leaderElection(rf *Raft) {
 		case CandidateState:
 			rf.CandidateRequestVotes()
 		case LeaderState:
-			time.Sleep(30 * time.Millisecond)
 			rf.LeaderAppendEntries()
+			time.Sleep(30 * time.Millisecond)
 
 		}
 	}

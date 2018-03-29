@@ -20,9 +20,10 @@ func (rf *Raft) LeaderAppendEntries() {
 		go func(it int) {
 			reply := &AppendEntriesReply{}
 			lastLog := rf.GetLastLog()
+			DPrintf("prevLogTerm: %v prevLogIndex: %v", lastLog.Term, lastLog.Index)
 			ok := rf.sendAppendEntries(it, &AppendEntriesArgs{rf.currentTerm,
-				rf.me, rf.logs[rf.nextIndex[it]:], lastLog.Term,
-				lastLog.Index, rf.commitIndex},
+				rf.me, rf.logs[rf.nextIndex[it]:], lastLog.Index,
+				lastLog.Term, rf.commitIndex},
 				reply)
 
 			if !ok || !reply.Success && reply.Term > rf.currentTerm {
