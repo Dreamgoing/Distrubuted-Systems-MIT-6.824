@@ -202,6 +202,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		DPrintf("command: %v index: %v", command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
 		rf.LeaderAppendEntries()
+		rf.lastApplied++
 		rf.applyChan <- ApplyMsg{true, command, index}
 
 	}

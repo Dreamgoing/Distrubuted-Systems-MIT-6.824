@@ -42,6 +42,7 @@ func (rf *Raft) LeaderAppendEntries() {
 	}
 	wg.Wait()
 	DPrintf("%v %v appendEntries %v/%v success", rf.state, rf.me, cnt, total)
+
 }
 
 func (rf *Raft) FollowerElectionTimeout() {
@@ -98,10 +99,10 @@ func countSuccess(ch chan bool, res *int) {
 }
 
 func (rf *Raft) GetLastLog() Entry {
-	if len(rf.logs) == 0 {
+	if len(rf.logs) <= 1 {
 		return Entry{None, None, None}
 	} else {
-		return rf.logs[len(rf.logs)-1]
+		return rf.logs[rf.commitIndex-1]
 	}
 
 }

@@ -75,9 +75,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		reply.Success = false
 		return
 		//	3. 删除已存在冲突的日志条目以及之后所有的日志
-	} else if len(rf.logs) > 0 && rf.logs[args.PrevLogIndex-1].Term != args.PrevLogTerm {
+	} else if len(rf.logs) > 0 && args.PrevLogIndex > 0 && rf.logs[args.PrevLogIndex].Term != args.PrevLogTerm {
 		DPrintf("delete conflict, PrevLogIndex: %v", args.PrevLogIndex)
-		//rf.logs = rf.logs[:args.PrevLogIndex]
+		rf.logs = rf.logs[:args.PrevLogIndex]
 	}
 
 	if len(args.Logs) == 0 {
