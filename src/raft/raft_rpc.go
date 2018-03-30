@@ -24,7 +24,7 @@ type RequestVoteReply struct {
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	var term, voteGrated = None, true
 
-	DPrintf("%v %v currentTerm: %v", rf.state, rf.me, rf.currentTerm)
+	DPrintf("%v %v currentTerm: %v args.Term: %v", rf.state, rf.me, rf.currentTerm, args.Term)
 	if args.Term < rf.currentTerm {
 		term = rf.currentTerm
 		voteGrated = false
@@ -35,6 +35,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		DPrintf("%v %v vote %v", rf.state, rf.me, args.CandidateID)
 		rf.currentTerm = args.Term
 		rf.votedFor = args.CandidateID
+		rf.ToFollower()
 	}
 
 	reply.Term = term
@@ -58,8 +59,6 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 	// 1. term < currentTerm
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm

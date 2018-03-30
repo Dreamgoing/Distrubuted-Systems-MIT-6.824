@@ -16,6 +16,8 @@ func (rf *Raft) LeaderAppendEntries() {
 			continue
 		}
 		go func(it int) {
+			rf.AcquireLock()
+			defer rf.ReleaseLock()
 			reply := &AppendEntriesReply{}
 			lastLog := rf.GetLastLog()
 			DPrintf("prevLogTerm: %v prevLogIndex: %v", lastLog.Term, lastLog.Index)
@@ -24,12 +26,9 @@ func (rf *Raft) LeaderAppendEntries() {
 				lastLog.Term, rf.commitIndex},
 				reply)
 
-			if !ok || !reply.Success && reply.Term > rf.currentTerm {
+			if !reply.Success && reply.Term > rf.currentTerm {
 				DPrintf("%v %v became follower", rf.state, rf.me)
 				rf.currentTerm = reply.Term
-				rf.state = FollowerState
-				rf.votedFor = None
-				rf.timer[FollowerState].Reset(rf.electionTimeout)
 			}
 			if ok && reply.Success {
 				atomic.AddInt32(&cnt, 1)

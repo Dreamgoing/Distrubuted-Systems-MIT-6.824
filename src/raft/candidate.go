@@ -6,9 +6,6 @@ import (
 )
 
 func (rf *Raft) CandidateRequestVotes() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
 	rf.PrepareElection()
 	DPrintf("New %v %v", rf.state, rf.me)
 

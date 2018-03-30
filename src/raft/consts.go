@@ -15,9 +15,9 @@ const (
 )
 
 const (
-	ElectionTimeout  = 300
+	ElectionTimeout  = 150
 	HeartbeatTimeout = 30
-	CandidateTimeout = 150
+	CandidateTimeout = 100
 )
 
 const RandNum = 100
@@ -25,4 +25,4 @@ const RandNum = 100
 var TimeOutMapping = map[State]time.Duration{
 	FollowerState:  ElectionTimeout,
 	CandidateState: CandidateTimeout,
-	LeaderState:    HeartbeatTimeout}
+	LeaderState:    HeartbeatTimeout,}

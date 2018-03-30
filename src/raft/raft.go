@@ -67,8 +67,10 @@ type Raft struct {
 
 	timer map[State]*time.Timer
 
-	electionTimeout time.Duration
-	logs            []Entry
+	timeout time.Duration
+	logs    []Entry
+
+	trans chan State
 
 	applyChan chan ApplyMsg
 
@@ -80,8 +82,8 @@ type Raft struct {
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
+	rf.AcquireLock()
+	defer rf.ReleaseLock()
 	var term int
 	var isleader bool
 	// Your code here (2A).
@@ -234,36 +236,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.Init()
 	rf.applyChan = applyCh
 
-	DPrintf("Create raft: id:%v, timeout: %v", rf.me, rf.electionTimeout)
+	DPrintf("Create raft: id:%v, timeout: %v", rf.me, rf.timeout)
 
-	//rf.ToFollower()
-	go backgroundServer(rf)
 	// initialize from state persisted before a crash
+	rf.server()
 	rf.readPersist(persister.ReadRaftState())
 
 	return rf
-}
-
-func backgroundServer(rf *Raft) {
-	for {
-		DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
-		switch rf.state {
-		case FollowerState:
-			<-rf.timer[FollowerState].C
-			//time.Sleep(rf.electionTimeout)
-			DPrintf("%v %v voteFor: %v len(logs): %v", rf.state, rf.me, rf.votedFor, len(rf.logs))
-			rf.state = CandidateState
-
-		case CandidateState:
-			rf.CandidateRequestVotes()
-		case LeaderState:
-			rf.LeaderAppendEntries()
-			time.Sleep(30 * time.Millisecond)
-			//case End:
-			//	return
-		}
-	}
-
 }
 
 func (rf *Raft) server() {
@@ -278,7 +257,41 @@ func (rf *Raft) server() {
 	}()
 
 	go func() {
-		select {}
+		select {
+		case <-rf.timer[FollowerState].C:
+			DPrintf("%v %v FollowerTimeout %v", rf.state, rf.me, rf.timeout)
+			rf.trans <- CandidateState
+		case <-rf.timer[CandidateState].C:
+			DPrintf("%v %v CandidateTime %v", rf.state, rf.me, rf.timeout)
+			rf.trans <- CandidateState
+		case <-rf.timer[LeaderState].C:
+			DPrintf("%v %v HeartBeatTimeout %v", rf.state, rf.me, rf.timeout)
+			rf.trans <- LeaderState
+		}
+	}()
+
+	go func() {
+		for {
+			state := <-rf.trans
+			DPrintf("%v %v to %v", rf.state, rf.me, state)
+			switch state {
+			case FollowerState:
+				rf.AcquireLock()
+				rf.ToFollower()
+				rf.ReleaseLock()
+			case CandidateState:
+				rf.AcquireLock()
+				rf.ToCandidate()
+				rf.CandidateRequestVotes()
+				rf.ReleaseLock()
+			case LeaderState:
+				rf.AcquireLock()
+				rf.LeaderAppendEntries()
+				rf.ReleaseLock()
+			}
+
+		}
+
 	}()
 
 }
