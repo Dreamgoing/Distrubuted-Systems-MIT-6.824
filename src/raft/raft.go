@@ -196,7 +196,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		DPrintf("command: %v index: %v", command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
 
-		rf.LeaderAppendEntries()
+		go rf.LeaderAppendEntries()
 		rf.lastApplied++
 		go func() {
 			rf.applyChan <- ApplyMsg{true, command, index}
@@ -251,10 +251,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 func (rf *Raft) server() {
 	go func() {
 		ticker := time.NewTicker(time.Millisecond)
-		select {
-		case <-ticker.C:
-			rf.ApplyCommit()
+		for {
+			select {
+			case <-ticker.C:
+				//rf.ApplyCommit()
+			}
 		}
+
 	}()
 
 	go func() {

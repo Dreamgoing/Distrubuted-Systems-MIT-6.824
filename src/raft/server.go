@@ -31,6 +31,7 @@ func (rf *Raft) Init() {
 	rf.currentTerm = None
 	rf.votedFor = None
 	rf.commitIndex = None
+	rf.lastApplied = Zero
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
 }
@@ -66,6 +67,7 @@ func (rf *Raft) ToLeader() {
 }
 
 func (rf *Raft) ApplyCommit() {
+	//DPrintf("%v %v", rf.commitIndex, rf.lastApplied)
 	if rf.commitIndex > rf.lastApplied {
 		rf.lastApplied++
 		rf.applyChan <- ApplyMsg{
