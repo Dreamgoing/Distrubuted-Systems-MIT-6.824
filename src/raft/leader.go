@@ -29,8 +29,8 @@ func (rf *Raft) LeaderAppendEntries() {
 			//rf.AcquireLock()
 			//defer rf.ReleaseLock()
 
-			DPrintf("prevLogTerm: %v prevLogIndex: %v rf.nextIndex[%v]: %v",
-				lastLog.Term, lastLog.Index, it, rf.nextIndex[it])
+			LevelDPrintf("prevLogTerm: %v prevLogIndex: %v rf.nextIndex[%v]: %v",
+				ShowVariable, lastLog.Term, lastLog.Index, it, rf.nextIndex[it])
 
 			ok := rf.sendAppendEntries(it, &AppendEntriesArgs{rf.currentTerm,
 				rf.me, log, lastLog.Index,
@@ -39,7 +39,7 @@ func (rf *Raft) LeaderAppendEntries() {
 
 			if ok {
 				if !reply.Success && reply.Term > rf.currentTerm {
-					DPrintf("%v %v became follower", rf.state, rf.me)
+					LevelDPrintf("%v %v became follower", ShowProcess, rf.state, rf.me)
 					rf.currentTerm = reply.Term
 					rf.ToFollower()
 				}
@@ -55,7 +55,7 @@ func (rf *Raft) LeaderAppendEntries() {
 	}
 	wg.Wait()
 
-	DPrintf("%v %v appendEntries %v/%v success", rf.state, rf.me, cnt, total)
+	LevelDPrintf("%v %v appendEntries %v/%v success", ShowProcess, rf.state, rf.me, cnt, total)
 
 	if !MajorityOk(int(cnt), total) {
 		rf.ToFollower()

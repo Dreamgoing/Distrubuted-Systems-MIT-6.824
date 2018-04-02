@@ -193,7 +193,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.commitIndex++
 		index = rf.commitIndex
 		term = rf.currentTerm
-		DPrintf("command: %v index: %v", command, index)
+		LevelDPrintf("command: %v index: %v", ShowVariable, command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
 
 		go rf.LeaderAppendEntries()
@@ -239,7 +239,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.Init()
 	rf.applyChan = applyCh
 
-	DPrintf("Create raft: id:%v, timeout: %v", rf.me, rf.timeout)
+	LevelDPrintf("Create raft: id:%v, timeout: %v", ShowVariable, rf.me, rf.timeout)
 
 	// initialize from state persisted before a crash
 	rf.server()
@@ -264,13 +264,13 @@ func (rf *Raft) server() {
 		for {
 			select {
 			case <-rf.timer[FollowerState].C:
-				DPrintf("%v %v FollowerTimeout %v", rf.state, rf.me, rf.timeout)
+				LevelDPrintf("%v %v FollowerTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
 				rf.trans <- CandidateState
 			case <-rf.timer[CandidateState].C:
-				DPrintf("%v %v CandidateTime %v", rf.state, rf.me, rf.timeout)
+				LevelDPrintf("%v %v CandidateTime %v", ShowProcess, rf.state, rf.me, rf.timeout)
 				rf.trans <- CandidateState
 			case <-rf.timer[LeaderState].C:
-				DPrintf("%v %v HeartBeatTimeout %v", rf.state, rf.me, rf.timeout)
+				LevelDPrintf("%v %v HeartBeatTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
 				rf.trans <- LeaderState
 			}
 
@@ -280,9 +280,9 @@ func (rf *Raft) server() {
 
 	go func() {
 		for {
-			DPrintf("sleep... %v %v", rf.state, rf.me)
+			//LevelDPrintf("sleep... %v %v", ShowProcess, rf.state, rf.me)
 			state := <-rf.trans
-			DPrintf("wake... [trans:%v] %v %v to %v", state, rf.state, rf.me, state)
+			//LevelDPrintf("wake... [trans:%v] %v %v to %v", ShowProcess, rf.state, rf.me, state)
 			switch state {
 			case FollowerState:
 				rf.AcquireLock()

@@ -67,7 +67,7 @@ func (rf *Raft) ToLeader() {
 }
 
 func (rf *Raft) ApplyCommit() {
-	//DPrintf("%v %v", rf.commitIndex, rf.lastApplied)
+	LevelDPrintf("%v %v", ShowVariable, rf.commitIndex, rf.lastApplied)
 	if rf.commitIndex > rf.lastApplied {
 		rf.lastApplied++
 		rf.applyChan <- ApplyMsg{
