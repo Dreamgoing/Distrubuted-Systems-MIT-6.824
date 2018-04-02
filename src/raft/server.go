@@ -25,22 +25,25 @@ func (rf *Raft) Init() {
 	}
 
 	rf.trans = make(chan State)
-
+	rf.state = FollowerState
 	rf.ToFollower()
 
 	rf.currentTerm = None
 	rf.votedFor = None
 	rf.commitIndex = None
 	rf.nextIndex = make([]int, len(rf.peers))
+	rf.matchIndex = make([]int, len(rf.peers))
 }
 
 func (rf *Raft) ToFollower() {
+	rf.timer[rf.state].Stop()
 	rf.votedFor = None
 	rf.state = FollowerState
 	rf.ResetTimer()
 }
 
 func (rf *Raft) ToCandidate() {
+	rf.timer[rf.state].Stop()
 	rf.state = CandidateState
 }
 
@@ -51,6 +54,7 @@ func (rf *Raft) PrepareElection() {
 }
 
 func (rf *Raft) ToLeader() {
+	rf.timer[rf.state].Stop()
 	rf.state = LeaderState
 	rf.votedFor = None
 	rf.ResetTimer()

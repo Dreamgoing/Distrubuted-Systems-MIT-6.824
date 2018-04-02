@@ -8,32 +8,48 @@ import (
 func (rf *Raft) LeaderAppendEntries() {
 	cnt := int32(1)
 	total := len(rf.peers)
+
 	var wg sync.WaitGroup
 	wg.Add(total - 1)
+	reply := &AppendEntriesReply{}
+	lastLog := rf.GetLastLog()
 
 	for it := range rf.peers {
 		if it == rf.me {
 			continue
 		}
+
+		var log []Entry
+		if rf.nextIndex[it] < len(rf.logs) {
+			log = rf.logs[rf.nextIndex[it]:]
+		}
+
 		go func(it int) {
-			rf.AcquireLock()
-			defer rf.ReleaseLock()
-			reply := &AppendEntriesReply{}
-			lastLog := rf.GetLastLog()
-			DPrintf("prevLogTerm: %v prevLogIndex: %v", lastLog.Term, lastLog.Index)
+			//加锁还是不加锁
+			//rf.AcquireLock()
+			//defer rf.ReleaseLock()
+
+			DPrintf("prevLogTerm: %v prevLogIndex: %v rf.nextIndex[%v]: %v",
+				lastLog.Term, lastLog.Index, it, rf.nextIndex[it])
+
 			ok := rf.sendAppendEntries(it, &AppendEntriesArgs{rf.currentTerm,
-				rf.me, rf.logs[rf.nextIndex[it]:], lastLog.Index,
+				rf.me, log, lastLog.Index,
 				lastLog.Term, rf.commitIndex},
 				reply)
 
-			if !reply.Success && reply.Term > rf.currentTerm {
-				DPrintf("%v %v became follower", rf.state, rf.me)
-				rf.currentTerm = reply.Term
+			if ok {
+				if !reply.Success && reply.Term > rf.currentTerm {
+					DPrintf("%v %v became follower", rf.state, rf.me)
+					rf.currentTerm = reply.Term
+					rf.ToFollower()
+				}
+				if reply.Success {
+					atomic.AddInt32(&cnt, 1)
+					rf.matchIndex[it] = reply.Index
+				}
+				rf.nextIndex[it] = reply.Index + 1
 			}
-			if ok && reply.Success {
-				atomic.AddInt32(&cnt, 1)
-				rf.nextIndex[it] = rf.commitIndex + 1
-			}
+
 			wg.Done()
 		}(it)
 	}
@@ -44,6 +60,7 @@ func (rf *Raft) LeaderAppendEntries() {
 	if !MajorityOk(int(cnt), total) {
 		rf.ToFollower()
 	}
+	rf.ResetTimer()
 
 }
 

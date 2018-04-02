@@ -195,9 +195,12 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		term = rf.currentTerm
 		DPrintf("command: %v index: %v", command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
+
 		rf.LeaderAppendEntries()
 		rf.lastApplied++
-		rf.applyChan <- ApplyMsg{true, command, index}
+		go func() {
+			rf.applyChan <- ApplyMsg{true, command, index}
+		}()
 
 	}
 
@@ -250,30 +253,33 @@ func (rf *Raft) server() {
 		ticker := time.NewTicker(time.Millisecond)
 		select {
 		case <-ticker.C:
-			rf.AcquireLock()
 			rf.ApplyCommit()
-			rf.ReleaseLock()
-		}
-	}()
-
-	go func() {
-		select {
-		case <-rf.timer[FollowerState].C:
-			DPrintf("%v %v FollowerTimeout %v", rf.state, rf.me, rf.timeout)
-			rf.trans <- CandidateState
-		case <-rf.timer[CandidateState].C:
-			DPrintf("%v %v CandidateTime %v", rf.state, rf.me, rf.timeout)
-			rf.trans <- CandidateState
-		case <-rf.timer[LeaderState].C:
-			DPrintf("%v %v HeartBeatTimeout %v", rf.state, rf.me, rf.timeout)
-			rf.trans <- LeaderState
 		}
 	}()
 
 	go func() {
 		for {
+			select {
+			case <-rf.timer[FollowerState].C:
+				DPrintf("%v %v FollowerTimeout %v", rf.state, rf.me, rf.timeout)
+				rf.trans <- CandidateState
+			case <-rf.timer[CandidateState].C:
+				DPrintf("%v %v CandidateTime %v", rf.state, rf.me, rf.timeout)
+				rf.trans <- CandidateState
+			case <-rf.timer[LeaderState].C:
+				DPrintf("%v %v HeartBeatTimeout %v", rf.state, rf.me, rf.timeout)
+				rf.trans <- LeaderState
+			}
+
+		}
+
+	}()
+
+	go func() {
+		for {
+			DPrintf("sleep... %v %v", rf.state, rf.me)
 			state := <-rf.trans
-			DPrintf("%v %v to %v", rf.state, rf.me, state)
+			DPrintf("wake... [trans:%v] %v %v to %v", state, rf.state, rf.me, state)
 			switch state {
 			case FollowerState:
 				rf.AcquireLock()
