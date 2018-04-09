@@ -22,6 +22,12 @@
 
 ### [zookeeper](./notes/分布式系统6.824-zookeeper.md)
 
+## Lab 进度
+
++ MapReduce  __pass__
++ Raft
+	- `2A` __pass__
+	- `2B` __pass__
 
 ## Reference
 
