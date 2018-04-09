@@ -11,6 +11,7 @@ func (rf *Raft) LeaderAppendEntries() {
 
 	var wg sync.WaitGroup
 	wg.Add(total - 1)
+
 	reply := &AppendEntriesReply{}
 	lastLog := rf.GetLastLog()
 
@@ -25,9 +26,6 @@ func (rf *Raft) LeaderAppendEntries() {
 		}
 
 		go func(it int, log []Entry) {
-			//加锁还是不加锁
-			//rf.AcquireLock()
-			//defer rf.ReleaseLock()
 			if len(log) == 0 {
 				LevelDPrintf("%v %v send HeartBeat to %v", ShowProcess, rf.state, rf.me, it)
 			} else {
@@ -44,6 +42,7 @@ func (rf *Raft) LeaderAppendEntries() {
 				reply)
 
 			if ok {
+				// FIXME Lock
 				if !reply.Success && reply.Term > rf.currentTerm {
 					LevelDPrintf("%v %v became follower", ShowProcess, rf.state, rf.me)
 					rf.currentTerm = reply.Term
@@ -53,8 +52,7 @@ func (rf *Raft) LeaderAppendEntries() {
 					atomic.AddInt32(&cnt, 1)
 					rf.matchIndex[it] = reply.Index
 				}
-				rf.nextIndex[it] = reply.Index + 1
-				//DPrintf("%v %v ", rf.nextIndex[it], it)
+				rf.nextIndex[it] = reply.Index
 			}
 			//LevelDPrintf("%v %v send AppendEntries to %v %v", ShowProcess, rf.state, rf.me, it, ok)
 
@@ -76,7 +74,8 @@ func (rf *Raft) GetLastLog() Entry {
 	if len(rf.logs) <= 1 {
 		return Entry{None, None, None}
 	} else {
-		return rf.logs[rf.commitIndex-1]
+		idx := len(rf.logs) - 2
+		return rf.logs[idx]
 	}
 
 }

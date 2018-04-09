@@ -5,13 +5,6 @@ import (
 	"math/rand"
 )
 
-func (rf *Raft) ApplyStateMachine() {
-	if rf.commitIndex > rf.lastApplied {
-		rf.lastApplied++
-	}
-	//log[rf.lastApplied] => StateMachine
-}
-
 func (rf *Raft) Init() {
 	rf.timeout = time.Duration(rand.Int63n(RandNum)+ElectionTimeout) * time.Millisecond
 	rf.timer = make(map[State]*time.Timer, 3)
@@ -30,7 +23,7 @@ func (rf *Raft) Init() {
 
 	rf.currentTerm = None
 	rf.votedFor = None
-	rf.commitIndex = None
+	rf.commitIndex = Zero
 	rf.lastApplied = Zero
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
@@ -67,14 +60,16 @@ func (rf *Raft) ToLeader() {
 }
 
 func (rf *Raft) ApplyCommit() {
-	LevelDPrintf("%v %v", ShowVariable, rf.commitIndex, rf.lastApplied)
+	//DPrintf("%v %v %v", rf.me, rf.commitIndex, rf.lastApplied)
 	if rf.commitIndex > rf.lastApplied {
-		rf.lastApplied++
+		LevelDPrintf("%v %v apply commit %v", ShowProcess, rf.state, rf.me, rf.logs[rf.lastApplied].Command)
 		rf.applyChan <- ApplyMsg{
 			true,
 			rf.logs[rf.lastApplied].Command,
-			rf.lastApplied}
+			rf.logs[rf.lastApplied].Index}
+		rf.lastApplied++
 	}
+
 }
 
 func (rf *Raft) ResetTimer() {

@@ -194,6 +194,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
+
 	index := -1
 	term := -1
 	isLeader := true
@@ -204,14 +205,12 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.commitIndex++
 		index = rf.commitIndex
 		term = rf.currentTerm
-		LevelDPrintf("command: %v index: %v", ShowVariable, command, index)
-		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
-		go rf.LeaderAppendEntries()
-		rf.lastApplied++
 
-		go func() {
-			rf.applyChan <- ApplyMsg{true, command, index}
-		}()
+		//LevelDPrintf("command: %v index: %v", ShowVariable, command, index)
+
+		rf.logs = append(rf.logs, Entry{term, index, command})
+
+		rf.LeaderAppendEntries()
 
 	}
 
@@ -261,11 +260,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 func (rf *Raft) server() {
 	go func() {
-		ticker := time.NewTicker(time.Millisecond)
+		ticker := time.NewTicker(30 * time.Millisecond)
 		for {
 			select {
 			case <-ticker.C:
+				rf.AcquireLock()
 				rf.ApplyCommit()
+				rf.ReleaseLock()
 			}
 		}
 

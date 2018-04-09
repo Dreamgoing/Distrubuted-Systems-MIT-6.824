@@ -16,8 +16,8 @@ const (
 
 const (
 	ElectionTimeout  = 350
-	HeartbeatTimeout = 100
-	CandidateTimeout = 30
+	HeartbeatTimeout = 10
+	CandidateTimeout = 100
 )
 
 const RandNum = 100
