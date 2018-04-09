@@ -489,3 +489,4 @@ func (cfg *config) end() {
 		fmt.Printf("  %4.1f  %d %4d %4d\n", t, npeers, nrpc, ncmds)
 	}
 }
+
