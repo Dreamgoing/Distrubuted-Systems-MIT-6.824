@@ -165,7 +165,18 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+
+	rpc := make(chan bool)
+	ok := false
+	go func() {
+		rpc <- rf.peers[server].Call("Raft.AppendEntries", args, reply)
+	}()
+
+	select {
+	case ok = <-rpc:
+	case <-time.After(10 * time.Millisecond):
+		ok = false
+	}
 	return ok
 }
 
@@ -195,9 +206,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		term = rf.currentTerm
 		LevelDPrintf("command: %v index: %v", ShowVariable, command, index)
 		rf.logs = append(rf.logs, Entry{rf.currentTerm, rf.commitIndex, command})
-
 		go rf.LeaderAppendEntries()
 		rf.lastApplied++
+
 		go func() {
 			rf.applyChan <- ApplyMsg{true, command, index}
 		}()
@@ -254,7 +265,7 @@ func (rf *Raft) server() {
 		for {
 			select {
 			case <-ticker.C:
-				//rf.ApplyCommit()
+				rf.ApplyCommit()
 			}
 		}
 

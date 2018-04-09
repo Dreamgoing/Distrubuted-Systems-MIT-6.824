@@ -19,7 +19,6 @@ func (rf *Raft) CandidateRequestVotes() {
 			continue
 		}
 		go func(it int) {
-
 			reply := &RequestVoteReply{}
 			ok := rf.sendRequestVote(it, &RequestVoteArgs{rf.currentTerm,
 				rf.me, None, None}, reply)

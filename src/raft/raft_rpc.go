@@ -72,6 +72,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	//LevelDPrintf("len(rf.logs): %v args.PrevLogIndex: %v", len(rf.logs), args.PrevLogIndex)
 	// 2. 当前Follower上面已提交日志的索引小于Leader发来的最后一个日志的索引
 	// 这种情况需要Leader再补发之前未在本Follower提交的日志
+	//reply.Index = Min(len(rf.logs)-1, 0)
 	reply.Index = len(rf.logs)
 	if len(rf.logs) < args.PrevLogIndex {
 		reply.Success = false
@@ -80,6 +81,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	} else if len(rf.logs) > 0 && args.PrevLogIndex > 0 && rf.logs[args.PrevLogIndex].Term != args.PrevLogTerm {
 		LevelDPrintf("delete conflict, PrevLogIndex: %v", args.PrevLogIndex)
 		rf.logs = rf.logs[:args.PrevLogIndex]
+
 	}
 
 	if len(args.Logs) == 0 {
@@ -90,7 +92,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			ShowProcess, rf.state, rf.me, args.LeaderID, rf.currentTerm, args.Term, args.Logs[0].Command)
 		//LevelDPrintf("pre len: %v", len(rf.logs))
 		rf.logs = append(rf.logs, args.Logs...)
-		//LevelDPrintf("len: %v rf.commitIndex: %v", len(rf.logs), rf.commitIndex+1)
+		DPrintf("len: %v rf.commitIndex: %v", len(rf.logs), rf.commitIndex+1)
 		rf.applyChan <- ApplyMsg{true, rf.logs[rf.commitIndex+1].Command, rf.commitIndex + 1}
 	}
 

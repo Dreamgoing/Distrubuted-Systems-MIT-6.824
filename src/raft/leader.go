@@ -24,10 +24,16 @@ func (rf *Raft) LeaderAppendEntries() {
 			log = rf.logs[rf.nextIndex[it]:]
 		}
 
-		go func(it int) {
+		go func(it int, log []Entry) {
 			//加锁还是不加锁
 			//rf.AcquireLock()
 			//defer rf.ReleaseLock()
+			if len(log) == 0 {
+				LevelDPrintf("%v %v send HeartBeat to %v", ShowProcess, rf.state, rf.me, it)
+			} else {
+				LevelDPrintf("%v %v send log %v %v to %v", ShowProcess,
+					rf.state, rf.me, log[0].Command, log[0].Index, it)
+			}
 
 			LevelDPrintf("prevLogTerm: %v prevLogIndex: %v rf.nextIndex[%v]: %v",
 				ShowVariable, lastLog.Term, lastLog.Index, it, rf.nextIndex[it])
@@ -48,10 +54,12 @@ func (rf *Raft) LeaderAppendEntries() {
 					rf.matchIndex[it] = reply.Index
 				}
 				rf.nextIndex[it] = reply.Index + 1
+				//DPrintf("%v %v ", rf.nextIndex[it], it)
 			}
+			//LevelDPrintf("%v %v send AppendEntries to %v %v", ShowProcess, rf.state, rf.me, it, ok)
 
 			wg.Done()
-		}(it)
+		}(it, log)
 	}
 	wg.Wait()
 
