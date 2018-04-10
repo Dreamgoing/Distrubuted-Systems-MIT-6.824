@@ -60,6 +60,7 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+
 	// 1. term < currentTerm
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
@@ -70,6 +71,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.ToFollower()
 
 	LevelDPrintf("len(rf.logs): %v args.PrevLogIndex: %v", ShowVariable, len(rf.logs), args.PrevLogIndex)
+
 	// 2. 当前Follower上面已提交日志的索引小于Leader发来的最后一个日志的索引
 	// 这种情况需要Leader再补发之前未在本Follower提交的日志
 	reply.Index = len(rf.logs)
@@ -78,7 +80,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 		//	3. 删除已存在冲突的日志条目以及之后所有的日志
 	} else if len(rf.logs) > 0 && args.PrevLogIndex > 0 && rf.logs[args.PrevLogIndex-1].Term != args.PrevLogTerm {
-		LevelDPrintf("delete conflict, PrevLogIndex: %v", args.PrevLogIndex)
+		LevelDPrintf("delete conflict, PrevLogIndex: %v", ShowProcess, args.PrevLogIndex)
 		rf.logs = rf.logs[:args.PrevLogIndex]
 
 	}

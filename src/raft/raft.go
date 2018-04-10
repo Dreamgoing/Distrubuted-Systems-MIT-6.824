@@ -160,7 +160,16 @@ func (rf *Raft) readPersist(data []byte) {
 // the struct itself.
 //
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	rpc := make(chan bool)
+	ok := false
+	go func() {
+		rpc <- rf.peers[server].Call("Raft.RequestVote", args, reply)
+	}()
+	select {
+	case ok = <-rpc:
+	case <-time.After(10 * time.Millisecond):
+		ok = false
+	}
 	return ok
 }
 
@@ -282,7 +291,7 @@ func (rf *Raft) server() {
 				LevelDPrintf("%v %v CandidateTime %v", ShowProcess, rf.state, rf.me, rf.timeout)
 				rf.trans <- CandidateState
 			case <-rf.timer[LeaderState].C:
-				LevelDPrintf("%v %v HeartBeatTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
+				//LevelDPrintf("%v %v HeartBeatTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
 				rf.trans <- LeaderState
 			}
 

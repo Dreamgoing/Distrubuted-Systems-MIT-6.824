@@ -13,13 +13,12 @@ func (rf *Raft) LeaderAppendEntries() {
 	wg.Add(total - 1)
 
 	reply := &AppendEntriesReply{}
-	lastLog := rf.GetLastLog()
 
 	for it := range rf.peers {
 		if it == rf.me {
 			continue
 		}
-
+		lastLog := rf.GetPrevLog(it)
 		var log []Entry
 		if rf.nextIndex[it] < len(rf.logs) {
 			log = rf.logs[rf.nextIndex[it]:]
@@ -27,10 +26,10 @@ func (rf *Raft) LeaderAppendEntries() {
 
 		go func(it int, log []Entry) {
 			if len(log) == 0 {
-				LevelDPrintf("%v %v send HeartBeat to %v", ShowProcess, rf.state, rf.me, it)
+				//LevelDPrintf("%v %v send HeartBeat to %v", ShowProcess, rf.state, rf.me, it)
 			} else {
-				LevelDPrintf("%v %v send log %v %v to %v", ShowProcess,
-					rf.state, rf.me, log[0].Command, log[0].Index, it)
+				//LevelDPrintf("%v %v send log %v index: %v to %v", ShowProcess,
+				//	rf.state, rf.me, log[0].Command, log[0].Index, it)
 			}
 
 			LevelDPrintf("prevLogTerm: %v prevLogIndex: %v rf.nextIndex[%v]: %v",
@@ -61,7 +60,7 @@ func (rf *Raft) LeaderAppendEntries() {
 	}
 	wg.Wait()
 
-	LevelDPrintf("%v %v appendEntries %v/%v success", ShowProcess, rf.state, rf.me, cnt, total)
+	//LevelDPrintf("%v %v appendEntries %v/%v success", ShowProcess, rf.state, rf.me, cnt, total)
 
 	if !MajorityOk(int(cnt), total) {
 		rf.ToFollower()
@@ -70,11 +69,11 @@ func (rf *Raft) LeaderAppendEntries() {
 
 }
 
-func (rf *Raft) GetLastLog() Entry {
+func (rf *Raft) GetPrevLog(it int) Entry {
 	if len(rf.logs) <= 1 {
 		return Entry{None, None, None}
 	} else {
-		idx := len(rf.logs) - 2
+		idx := rf.nextIndex[it] - 1
 		return rf.logs[idx]
 	}
 
