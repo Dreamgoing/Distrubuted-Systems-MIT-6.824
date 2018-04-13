@@ -30,6 +30,9 @@
 #### 并行编程
 + 使用`mutex`,`goroutine`, `channel`尽可能的简单, 清晰.
 
+#### 使用`cond`
+`cond`的使用情况: 一个`goroutine`暂时挂起, 当产生特定的信号时开始执行`goroutine`. 
+
 ## 编程模式
 
 #### 1. 将数据的状态转化为程序状态
@@ -172,3 +175,5 @@ go func(server *Server){
 ## Reference
 
 [go pattern](https://pdos.csail.mit.edu/6.824/notes/gopattern.pdf)
+
+[understanding-condition-variable-in-go](https://kaviraj.me/understanding-condition-variable-in-go/)
