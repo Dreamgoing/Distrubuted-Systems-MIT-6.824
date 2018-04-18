@@ -20,7 +20,6 @@
 
 ### [GO并行编程](./notes/golang并行编程.md)
 
-
 ### [zookeeper](./notes/分布式系统6.824-zookeeper.md)
 
 ## Lab 进度
@@ -32,4 +31,3 @@
 
 ## Reference
 
-[Mit 6.824](https://pdos.csail.mit.edu/6.824/schedule.html)
