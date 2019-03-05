@@ -8,9 +8,9 @@ const Zero = 0
 type State string
 
 const (
-	FollowerState  = "Follower"
-	CandidateState = "Candidate"
-	LeaderState    = "Leader"
+	StateFollower  = "Follower"
+	StateCandidate = "Candidate"
+	StateLeader    = "Leader"
 	End            = "End"
 )
 
@@ -23,6 +23,6 @@ const (
 const RandNum = 100
 
 var TimeOutMapping = map[State]time.Duration{
-	FollowerState:  ElectionTimeout,
-	CandidateState: CandidateTimeout,
-	LeaderState:    HeartbeatTimeout,}
+	StateFollower:  ElectionTimeout,
+	StateCandidate: CandidateTimeout,
+	StateLeader:    HeartbeatTimeout,}

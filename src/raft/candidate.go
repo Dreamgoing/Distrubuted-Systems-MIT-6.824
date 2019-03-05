@@ -20,7 +20,7 @@ func (rf *Raft) CandidateRequestVotes() {
 		}
 		go func(it int) {
 			reply := &RequestVoteReply{}
-			ok := rf.sendRequestVote(it, &RequestVoteArgs{rf.currentTerm,
+			ok := rf.sendRequestVote(it, &RequestVoteArgs{rf.Term,
 				rf.me, None, None}, reply)
 			if ok && reply.VoteGrated {
 				atomic.AddInt32(&cnt, 1)
@@ -32,11 +32,11 @@ func (rf *Raft) CandidateRequestVotes() {
 	wg.Wait()
 	LevelDPrintf("%v %v get %v/%v votes", ShowProcess, rf.state, rf.me, cnt, total)
 	if int(cnt) > total/2 {
-		LevelDPrintf("%v %v became leader, term:%v", ShowProcess, rf.state, rf.me, rf.currentTerm)
-		rf.ToLeader()
+		LevelDPrintf("%v %v became leader, term:%v", ShowProcess, rf.state, rf.me, rf.Term)
+		rf.becomeLeader()
 	} else {
-		rf.ToFollower()
-		rf.currentTerm--
+		rf.becomeFollower()
+		rf.Term--
 	}
 
 }

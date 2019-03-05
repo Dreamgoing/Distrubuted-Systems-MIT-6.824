@@ -1,3 +1,7 @@
 pkg/
 api.key
 *-handin.tar.gz
+.idea/
+src/raft/out
+notes/~$ft-translate.docx
+sync_to_wrx_docs.sh

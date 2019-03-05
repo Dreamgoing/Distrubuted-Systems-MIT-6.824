@@ -43,6 +43,8 @@ type ApplyMsg struct {
 	CommandIndex int
 }
 
+type stepFunc func(r *Raft, message Message)
+
 //
 // A Go object implementing a single Raft peer.
 //
@@ -54,12 +56,12 @@ type Raft struct {
 
 	isLock bool
 	// persisted
-	state       State
-	currentTerm int
-	votedFor    int
+	state State
+	Term  int
+	Vote  int
 
 	// mutable
-	commitIndex int
+	commit      int
 	lastApplied int
 
 	nextIndex  []int
@@ -71,15 +73,28 @@ type Raft struct {
 	logs    []Entry
 
 	trans chan State
+	prs   map[int]*Progress
 
 	applyChan chan ApplyMsg
+
+	tick func()
+	step stepFunc
+
+	heartbeatTimeout int
+	electionTimeout  int
+
+	// 上次出现heartbeatTimeout之后，的tick数量只有leader会维护这个状态
+	heartbeatElapsed int
+
+	// 上次出现electionTimeout之后的tick数量，当其为leader或者candidate时才会有这个状态
+	electionElapsed int
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
 }
 
-// return currentTerm and whether this server
+// return Term and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 	rf.AcquireLock()
@@ -87,9 +102,13 @@ func (rf *Raft) GetState() (int, bool) {
 	var term int
 	var isleader bool
 	// Your code here (2A).
-	isleader = rf.state == LeaderState
-	term = rf.currentTerm
+	isleader = rf.state == StateLeader
+	term = rf.Term
 	return term, isleader
+}
+
+func (rf *Raft) quorum() int {
+	return len(rf.peers)/2 + 1
 }
 
 //
@@ -209,18 +228,23 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (2B).
-	isLeader = rf.state == LeaderState
+	isLeader = rf.state == StateLeader
 	if isLeader {
-		rf.commitIndex++
-		index = rf.commitIndex
-		term = rf.currentTerm
+		rf.commit++
+		index = rf.commit
+		term = rf.Term
 
 		//LevelDPrintf("command: %v index: %v", ShowVariable, command, index)
 
 		rf.logs = append(rf.logs, Entry{term, index, command})
 
-		rf.LeaderAppendEntries()
+		ok := rf.LeaderAppendEntries()
 
+		// 成功条件为超过半数ok，appendEntries不成功则将leader之前commit的状态还原
+		if !ok {
+			rf.commit--
+			rf.logs = rf.logs[0 : len(rf.logs)-1]
+		}
 	}
 
 	return index, term, isLeader
@@ -284,17 +308,16 @@ func (rf *Raft) server() {
 	go func() {
 		for {
 			select {
-			case <-rf.timer[FollowerState].C:
+			case <-rf.timer[StateFollower].C:
 				LevelDPrintf("%v %v FollowerTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
-				rf.trans <- CandidateState
-			case <-rf.timer[CandidateState].C:
+				rf.trans <- StateCandidate
+			case <-rf.timer[StateCandidate].C:
 				LevelDPrintf("%v %v CandidateTime %v", ShowProcess, rf.state, rf.me, rf.timeout)
-				rf.trans <- CandidateState
-			case <-rf.timer[LeaderState].C:
+				rf.trans <- StateCandidate
+			case <-rf.timer[StateLeader].C:
 				//LevelDPrintf("%v %v HeartBeatTimeout %v", ShowProcess, rf.state, rf.me, rf.timeout)
-				rf.trans <- LeaderState
+				rf.trans <- StateLeader
 			}
-
 		}
 
 	}()
@@ -305,16 +328,16 @@ func (rf *Raft) server() {
 			state := <-rf.trans
 			//LevelDPrintf("wake... [trans:%v] %v %v to %v", ShowProcess, rf.state, rf.me, state)
 			switch state {
-			case FollowerState:
+			case StateFollower:
 				rf.AcquireLock()
-				rf.ToFollower()
+				rf.becomeFollower()
 				rf.ReleaseLock()
-			case CandidateState:
+			case StateCandidate:
 				rf.AcquireLock()
-				rf.ToCandidate()
+				rf.becomeCandidate()
 				rf.CandidateRequestVotes()
 				rf.ReleaseLock()
-			case LeaderState:
+			case StateLeader:
 				rf.AcquireLock()
 				rf.LeaderAppendEntries()
 				rf.ReleaseLock()

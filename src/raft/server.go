@@ -9,59 +9,59 @@ func (rf *Raft) Init() {
 	rf.timeout = time.Duration(rand.Int63n(RandNum)+ElectionTimeout) * time.Millisecond
 	rf.timer = make(map[State]*time.Timer, 3)
 
-	rf.timer[FollowerState] = time.NewTimer(rf.timeout)
-	rf.timer[CandidateState] = time.NewTimer(rf.timeout)
-	rf.timer[LeaderState] = time.NewTimer(rf.timeout)
+	rf.timer[StateFollower] = time.NewTimer(rf.timeout)
+	rf.timer[StateCandidate] = time.NewTimer(rf.timeout)
+	rf.timer[StateLeader] = time.NewTimer(rf.timeout)
 
 	for _, timer := range rf.timer {
 		timer.Stop()
 	}
 
 	rf.trans = make(chan State)
-	rf.state = FollowerState
-	rf.ToFollower()
+	rf.state = StateFollower
+	rf.becomeFollower()
 
-	rf.currentTerm = None
-	rf.votedFor = None
-	rf.commitIndex = Zero
+	rf.Term = None
+	rf.Vote = None
+	rf.commit = Zero
 	rf.lastApplied = Zero
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
 }
 
-func (rf *Raft) ToFollower() {
+func (rf *Raft) becomeFollower() {
 	rf.timer[rf.state].Stop()
-	rf.votedFor = None
-	rf.state = FollowerState
+	rf.Vote = None
+	rf.state = StateFollower
 	rf.ResetTimer()
 }
 
-func (rf *Raft) ToCandidate() {
+func (rf *Raft) becomeCandidate() {
 	rf.timer[rf.state].Stop()
-	rf.state = CandidateState
+	rf.state = StateCandidate
 }
 
 func (rf *Raft) PrepareElection() {
-	rf.currentTerm++
-	rf.votedFor = rf.me
+	rf.Term++
+	rf.Vote = rf.me
 	rf.ResetTimer()
 }
 
-func (rf *Raft) ToLeader() {
+func (rf *Raft) becomeLeader() {
 	rf.timer[rf.state].Stop()
-	rf.state = LeaderState
-	rf.votedFor = None
+	rf.state = StateLeader
+	rf.Vote = None
 	rf.ResetTimer()
 	rf.nextIndex = make([]int, len(rf.peers))
 	for i := range rf.peers {
-		rf.nextIndex[i] = rf.commitIndex + 1
+		rf.nextIndex[i] = rf.commit + 1
 	}
 
 }
 
 func (rf *Raft) ApplyCommit() {
-	//DPrintf("%v %v %v", rf.me, rf.commitIndex, rf.lastApplied)
-	if rf.commitIndex > rf.lastApplied {
+	//DPrintf("%v %v %v", rf.me, rf.commit, rf.lastApplied)
+	if rf.commit > rf.lastApplied {
 		LevelDPrintf("%v %v apply commit %v", ShowProcess, rf.state, rf.me, rf.logs[rf.lastApplied].Command)
 		rf.applyChan <- ApplyMsg{
 			true,

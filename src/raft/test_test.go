@@ -130,7 +130,8 @@ func TestFailAgree2B(t *testing.T) {
 }
 
 func TestFailNoAgree2B(t *testing.T) {
-	servers := 5
+	// 集群中超过半数的
+	servers := 3
 	cfg := make_config(t, servers, false)
 	defer cfg.cleanup()
 
